@@ -11,7 +11,12 @@ let table = document.createElement('table');
 document.body.appendChild(table);
 
 let graph = new Graph(input);
-
+let myTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId === botName)[0].Coordinates;
+let myTankNode = graph.map[myTankCoord.Y][myTankCoord.X];
+let enemyTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName)[0].Coordinates;
+let enemyTankNode = graph.map[enemyTankCoord.Y][enemyTankCoord.X];
+let path = new PathFinder(graph, myTankNode, enemyTankNode);
+console.info(path);
 let pathFinder = new AStarSteering(input);
 
 for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
@@ -23,7 +28,7 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
 
     for (let j = 0; j < pathFinder.mapSize.width; j++) {
         let td = document.createElement('td');
-        td.id = 'cell' + j;
+        td.id = 'cell' + i + '-'+ j;
         let cell = pathFinder.graph[i][j];
         let className;
         switch (cell.Type) {
@@ -43,12 +48,19 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
                 className = 'bullet';
                 break;
         }
-        td.classList.add(className);
+        if(className) {
+            td.classList.add(className);
+        }
         tr.appendChild(td);
     }
 }
 
-debugger;
+for (let i = 0; i < path.length; i++) {
+    let node = path[i];
+    let point = document.getElementById("cell" + node.Y + "-" + node.X);
+    point.classList.add("path");
+
+}
 
 function Node(x, y) {
     this.X = x;
@@ -66,14 +78,14 @@ function Graph(gameState) {
     this.mapSize = {width: 0, height: 0};
     this.map = [];
 
-    let obstacles = {};
+    this.obstacles = {};
 
     gameState.ContentsInfo.forEach(cell => {
         let y = cell.Coordinates.Y;
         let x = cell.Coordinates.X;
 
         if (cell.Type === CellType.NotDestroyable || cell.Type === CellType.Water) {
-            obstacles[x + ";" + y] = true;
+            this.obstacles[x + ";" + y] = true;
         }
 
         let mapSize = this.mapSize;
@@ -92,73 +104,110 @@ function Graph(gameState) {
         for (let x = 0; x < this.mapSize.width; x++) {
             let coordinates = {X: x, Y: y};
             let node = new Node(x, y);
-            node.neighbours = neighbours(coordinates, this.mapSize);
             this.map[y][x] = node;
         }
     }
 
-    function neighbours(coordinates, mapSize) {
+    this.getNode = function (x, y) {
+        return this.map[y] ? this.map[y][x] : null;
+    }
+
+
+}
+
+function PathFinder(graph, sourceNode, targetNode) {
+    let opened = [];
+    opened.getNext = function () {
+        let max = Number.MAX_VALUE;
+        let min = -1;
+
+        for (let i = 0; i < this.length; i++) {
+            if (this[i].f < max) {
+                max = this[i].f;
+                min = i;
+            }
+        }
+
+        return this.splice(min, 1)[0];
+    };
+
+    opened.push(sourceNode);
+    let closed = {};
+    let visited = {};
+    let cameFrom = {};
+
+    sourceNode.f = distance(sourceNode, targetNode);
+    sourceNode.g = 0;
+
+    let result = [];
+
+    while (opened.length > 0) {
+        let current = opened.getNext();
+
+        if (current.hash() === targetNode.hash()) {
+            console.info("found final path");
+
+            do {
+                result.push(current);
+                current = current.parent;
+            } while (current);
+
+            result.reverse();
+
+            //reverse path
+            return result;
+        }
+
+
+        let neighboursList = neighbours(current, graph);
+        for (let i = 0; i < neighboursList.length; i++) {
+            let neighbour = neighboursList[i];
+
+            if (visited[neighbour.hash()] !== true) {
+
+                neighbour.parent = current;
+                neighbour.g = current.g + distance(neighbour, current);
+                neighbour.f = current.g + distance(neighbour, targetNode);
+                opened.push(neighbour);
+
+                visited[neighbour.hash()] = true;
+            }
+        }
+        closed[current.hash()] = true;
+
+    }
+
+    function distance(from, to) {
+        return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
+    }
+
+    function neighbours2(node, graph) {
+        return [
+            graph.getNode(node.X + 1, node.Y),
+            graph.getNode(node.X - 1, node.Y),
+            graph.getNode(node.X, node.Y + 1),
+            graph.getNode(node.X, node.Y - 1)
+        ].filter(node => node != null
+            && !graph.obstacles[node.hash()]
+            && node.X >= 0
+            && graph.mapSize.width >= node.X
+            && node.Y >= 0
+            && graph.mapSize.height >= node.Y
+        );
+    }
+
+    function neighbours(coordinates, graph) {
         return [
             new Node(coordinates.X + 1, coordinates.Y),
             new Node(coordinates.X - 1, coordinates.Y),
             new Node(coordinates.X, coordinates.Y + 1),
             new Node(coordinates.X, coordinates.Y - 1),
-        ].filter(node => !obstacles[node.X + ";" + node.Y]
+        ].filter(node => !graph.obstacles[node.X + ";" + node.Y]
             && node.X >= 0
-            && mapSize.width >= node.X
+            && graph.mapSize.width >= node.X
             && node.Y >= 0
-            && mapSize.height >= node.Y
+            && graph.mapSize.height >= node.Y
         );
-    }
-}
-
-function PathFinder(graph, sourceNode, targetNode) {
-    let opened = [];
-    opened.push(sourceNode);
-    let closed = {};
-    let cameFrom = {};
-    let gScore = {};
-    let fScore = {};
-
-    gScore[sourceNode.hash()] = 0;
-    fScore[sourceNode.hash()] = h(sourceNode, targetNode);
-
-    sourceNode.f = h(sourceNode, targetNode);
-    sourceNode.g = 0;
-
-    while (opened.length > 0) {
-        let current = opened.get(0);
-        let minH = 9999;
-        let next = null;
-        for (let i = 0; i < current.neighbours.length; i++) {
-            let neighbour = current.neighbours[i];
-            let currH = h(neighbour, targetNode);
-            if (minH > currH) {
-                minH = currH;
-                next = neighbour
-            }
-
-
-        }
-
-    }
-
-    function getNext(fScore) {
-        let min, res;
-        for(let hash in fScore) {
-            if(fScore[hash] < min) {
-                min = fScore[hash];
-                res = hash;
-            }
-        }
-    }
-
-    function h(from, to) {
-        return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
-    }
-
-    function getPath(cameFrom, current) {
-
     }
 }
 

@@ -31,3 +31,7 @@ td.enemy {
 td.bullet {
     background-color: darkgrey;
 }
+
+td.path {
+    border: 1px solid red;
+}
