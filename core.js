@@ -10,6 +10,8 @@ const CellType = {Tank: 0, Barrier: 1, NotDestroyable: 2, Water: 3, Bullet: -1};
 let table = document.createElement('table');
 document.body.appendChild(table);
 
+let graph = new Graph(input);
+
 let pathFinder = new AStarSteering(input);
 
 for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
@@ -44,13 +46,127 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
         td.classList.add(className);
         tr.appendChild(td);
     }
+}
 
+debugger;
+
+function Node(x, y) {
+    this.X = x;
+    this.Y = y;
+    this.neighbours = [];
+    this.f = Infinity;
+    this.g = Infinity;
+
+    this.hash = function () {
+        return this.X + ";" + this.Y
+    }
+}
+
+function Graph(gameState) {
+    this.mapSize = {width: 0, height: 0};
+    this.map = [];
+
+    let obstacles = {};
+
+    gameState.ContentsInfo.forEach(cell => {
+        let y = cell.Coordinates.Y;
+        let x = cell.Coordinates.X;
+
+        if (cell.Type === CellType.NotDestroyable || cell.Type === CellType.Water) {
+            obstacles[x + ";" + y] = true;
+        }
+
+        let mapSize = this.mapSize;
+        if (x > mapSize.width) {
+            mapSize.width = x;
+        }
+
+        if (y > mapSize.height) {
+            mapSize.height = y;
+        }
+    });
+
+    for (let y = 0; y < this.mapSize.height; y++) {
+        this.map[y] = [];
+
+        for (let x = 0; x < this.mapSize.width; x++) {
+            let coordinates = {X: x, Y: y};
+            let node = new Node(x, y);
+            node.neighbours = neighbours(coordinates, this.mapSize);
+            this.map[y][x] = node;
+        }
+    }
+
+    function neighbours(coordinates, mapSize) {
+        return [
+            new Node(coordinates.X + 1, coordinates.Y),
+            new Node(coordinates.X - 1, coordinates.Y),
+            new Node(coordinates.X, coordinates.Y + 1),
+            new Node(coordinates.X, coordinates.Y - 1),
+        ].filter(node => !obstacles[node.X + ";" + node.Y]
+            && node.X >= 0
+            && mapSize.width >= node.X
+            && node.Y >= 0
+            && mapSize.height >= node.Y
+        );
+    }
+}
+
+function PathFinder(graph, sourceNode, targetNode) {
+    let opened = [];
+    opened.push(sourceNode);
+    let closed = {};
+    let cameFrom = {};
+    let gScore = {};
+    let fScore = {};
+
+    gScore[sourceNode.hash()] = 0;
+    fScore[sourceNode.hash()] = h(sourceNode, targetNode);
+
+    sourceNode.f = h(sourceNode, targetNode);
+    sourceNode.g = 0;
+
+    while (opened.length > 0) {
+        let current = opened.get(0);
+        let minH = 9999;
+        let next = null;
+        for (let i = 0; i < current.neighbours.length; i++) {
+            let neighbour = current.neighbours[i];
+            let currH = h(neighbour, targetNode);
+            if (minH > currH) {
+                minH = currH;
+                next = neighbour
+            }
+
+
+        }
+
+    }
+
+    function getNext(fScore) {
+        let min, res;
+        for(let hash in fScore) {
+            if(fScore[hash] < min) {
+                min = fScore[hash];
+                res = hash;
+            }
+        }
+    }
+
+    function h(from, to) {
+        return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
+    }
+
+    function getPath(cameFrom, current) {
+
+    }
 }
 
 
 function AStarSteering(gameState) {
     this.mapSize = {width: 0, height: 0};
     this.gameState = gameState;
+    this.restricted = {};
     this.closed = {};
     this.graph = [];
 
@@ -72,6 +188,7 @@ function AStarSteering(gameState) {
         row[x] = cell;
 
         this.closed[x + ';' + y] = true;
+        this.restricted[x + ';' + y] = true;
     });
 
     gameState.BulletsInfo.forEach(bullet => {
@@ -102,6 +219,7 @@ function AStarSteering(gameState) {
                     break;
             }
             this.closed[bulletFuturePlace.x + ';' + bulletFuturePlace.y] = true;
+            this.restricted[bulletFuturePlace.x + ';' + bulletFuturePlace.y] = true;
         }
     });
 
@@ -116,11 +234,4 @@ function AStarSteering(gameState) {
             }
         }
     }
-
-    function getDirs(cell) {
-        let y = cell.Coordinates.Y;
-        let x = cell.Coordinates.X;
-    }
-
-
 }
