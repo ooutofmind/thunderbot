@@ -10,12 +10,16 @@ const CellType = {Tank: 0, Barrier: 1, NotDestroyable: 2, Water: 3, Bullet: -1};
 let table = document.createElement('table');
 document.body.appendChild(table);
 
+let startProfile = Date.now();
 let graph = new Graph(input);
 let myTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId === botName)[0].Coordinates;
 let myTankNode = graph.map[myTankCoord.Y][myTankCoord.X];
 let enemyTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName)[0].Coordinates;
 let enemyTankNode = graph.map[enemyTankCoord.Y][enemyTankCoord.X];
+
 let path = new PathFinder(graph, myTankNode, enemyTankNode);
+let endProfile = Date.now();
+alert("It takes " + (endProfile - startProfile) + 'ms');
 console.info(path);
 let pathFinder = new AStarSteering(input);
 
@@ -62,7 +66,7 @@ for (let i = 0; i < path.length; i++) {
 
 }
 
-function Node(x, y) {
+function GraphNode(x, y) {
     this.X = x;
     this.Y = y;
     this.neighbours = [];
@@ -102,17 +106,9 @@ function Graph(gameState) {
         this.map[y] = [];
 
         for (let x = 0; x < this.mapSize.width; x++) {
-            let coordinates = {X: x, Y: y};
-            let node = new Node(x, y);
-            this.map[y][x] = node;
+            this.map[y][x] = new GraphNode(x, y);
         }
     }
-
-    this.getNode = function (x, y) {
-        return this.map[y] ? this.map[y][x] : null;
-    }
-
-
 }
 
 function PathFinder(graph, sourceNode, targetNode) {
@@ -134,7 +130,6 @@ function PathFinder(graph, sourceNode, targetNode) {
     opened.push(sourceNode);
     let closed = {};
     let visited = {};
-    let cameFrom = {};
 
     sourceNode.f = distance(sourceNode, targetNode);
     sourceNode.g = 0;
@@ -145,19 +140,13 @@ function PathFinder(graph, sourceNode, targetNode) {
         let current = opened.getNext();
 
         if (current.hash() === targetNode.hash()) {
-            console.info("found final path");
-
             do {
                 result.push(current);
                 current = current.parent;
             } while (current);
 
-            result.reverse();
-
-            //reverse path
-            return result;
+            return result.reverse();
         }
-
 
         let neighboursList = neighbours(current, graph);
         for (let i = 0; i < neighboursList.length; i++) {
@@ -174,34 +163,18 @@ function PathFinder(graph, sourceNode, targetNode) {
             }
         }
         closed[current.hash()] = true;
-
     }
 
     function distance(from, to) {
         return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
     }
 
-    function neighbours2(node, graph) {
-        return [
-            graph.getNode(node.X + 1, node.Y),
-            graph.getNode(node.X - 1, node.Y),
-            graph.getNode(node.X, node.Y + 1),
-            graph.getNode(node.X, node.Y - 1)
-        ].filter(node => node != null
-            && !graph.obstacles[node.hash()]
-            && node.X >= 0
-            && graph.mapSize.width >= node.X
-            && node.Y >= 0
-            && graph.mapSize.height >= node.Y
-        );
-    }
-
     function neighbours(coordinates, graph) {
         return [
-            new Node(coordinates.X + 1, coordinates.Y),
-            new Node(coordinates.X - 1, coordinates.Y),
-            new Node(coordinates.X, coordinates.Y + 1),
-            new Node(coordinates.X, coordinates.Y - 1),
+            new GraphNode(coordinates.X + 1, coordinates.Y),
+            new GraphNode(coordinates.X - 1, coordinates.Y),
+            new GraphNode(coordinates.X, coordinates.Y + 1),
+            new GraphNode(coordinates.X, coordinates.Y - 1),
         ].filter(node => !graph.obstacles[node.X + ";" + node.Y]
             && node.X >= 0
             && graph.mapSize.width >= node.X

@@ -133,7 +133,7 @@ const input = {
         "Coordinates": {"X": 0, "Y": 12},
         "HealthCount": 255,
         "Type": 2
-    }, {"Coordinates": {"X": 1, "Y": 12}, "HealthCount": 3, "Type": 0, "UserId": "r2"}, {
+    }, {"Coordinates": {"X": 5, "Y": 3}, "HealthCount": 3, "Type": 0, "UserId": "r2"}, {
         "Coordinates": {
             "X": 4,
             "Y": 12
