@@ -1,0 +1,33 @@
+td {
+    width: 40px;
+    height: 40px;
+    background-color: antiquewhite;
+}
+
+td.wall {
+    background-color: black;
+}
+
+td.water {
+    background-color: cornflowerblue;
+}
+
+td.tree {
+    background-color: darkseagreen;
+}
+
+td.house {
+    background-color: sandybrown;
+}
+
+td.myTank {
+    background-color: blueviolet;
+}
+
+td.enemy {
+    background-color: maroon;
+}
+
+td.bullet {
+    background-color: darkgrey;
+}
