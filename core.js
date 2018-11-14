@@ -129,7 +129,6 @@ function PathFinder(graph, sourceNode, targetNode) {
 
     opened.push(sourceNode);
     let closed = {};
-    let visited = {};
 
     sourceNode.f = distance(sourceNode, targetNode);
     sourceNode.g = 0;
@@ -152,14 +151,14 @@ function PathFinder(graph, sourceNode, targetNode) {
         for (let i = 0; i < neighboursList.length; i++) {
             let neighbour = neighboursList[i];
 
-            if (visited[neighbour.hash()] !== true) {
+            if (closed[neighbour.hash()] !== true) {
 
                 neighbour.parent = current;
                 neighbour.g = current.g + distance(neighbour, current);
                 neighbour.f = current.g + distance(neighbour, targetNode);
                 opened.push(neighbour);
 
-                visited[neighbour.hash()] = true;
+                closed[neighbour.hash()] = true;
             }
         }
         closed[current.hash()] = true;
