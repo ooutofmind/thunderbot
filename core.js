@@ -17,11 +17,9 @@ let myTankNode = graph.map[myTankCoord.Y][myTankCoord.X];
 let enemyTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName)[0].Coordinates;
 let enemyTankNode = graph.map[enemyTankCoord.Y][enemyTankCoord.X];
 
-let finder = new PathFinder(graph, myTankNode, enemyTankNode);
-let path = finder.walkBetween(myTankNode, enemyTankNode);
+
 let endProfile = Date.now();
-alert("It takes " + (endProfile - startProfile) + 'ms');
-console.info(path);
+//alert("It takes " + (endProfile - startProfile) + 'ms');
 let pathFinder = new AStarSteering(input);
 
 for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
@@ -33,7 +31,7 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
 
     for (let j = 0; j < pathFinder.mapSize.width; j++) {
         let td = document.createElement('td');
-        td.id = 'cell' + i + '-'+ j;
+        td.id = 'cell' + i + '-' + j;
         let cell = pathFinder.graph[i][j];
         let className;
         switch (cell.Type) {
@@ -53,12 +51,19 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
                 className = 'bullet';
                 break;
         }
-        if(className) {
+
+        if(graph.obstacles[cell.Coordinates.X + ";" + cell.Coordinates.Y] === true) {
+            className = 'wall';
+        }
+        if (className) {
             td.classList.add(className);
         }
         tr.appendChild(td);
     }
 }
+
+let finder = new PathFinder(graph, myTankNode, enemyTankNode);
+let path = finder.walkBetween(myTankNode, enemyTankNode);
 
 for (let i = 0; i < path.length; i++) {
     let node = path[i];
@@ -75,7 +80,7 @@ function GraphNode(x, y) {
 
     this.hash = function () {
         return this.X + ";" + this.Y
-    }
+    };
 }
 
 function Graph(gameState) {
@@ -83,6 +88,8 @@ function Graph(gameState) {
     this.map = [];
 
     this.obstacles = {};
+
+    let r = gameState.ZoneRadius;
 
     gameState.ContentsInfo.forEach(cell => {
         let y = cell.Coordinates.Y;
@@ -102,19 +109,39 @@ function Graph(gameState) {
         }
     });
 
+    let center = new GraphNode(Math.floor(this.mapSize.width / 2), Math.floor(this.mapSize.height / 2));
+    gameState.ContentsInfo.forEach(cell => {
+        let y = cell.Coordinates.Y;
+        let x = cell.Coordinates.X;
+
+
+
+
+    });
+
     for (let y = 0; y < this.mapSize.height; y++) {
         this.map[y] = [];
 
         for (let x = 0; x < this.mapSize.width; x++) {
-            this.map[y][x] = new GraphNode(x, y);
+            let node = this.map[y][x] = new GraphNode(x, y);
+            let hash = node.hash();
+            if (this.obstacles[hash] !== true && !insideArea(center, node, r)) {
+                this.obstacles[hash] = true;
+            }
         }
+    }
+
+    function insideArea(center, point, radius) {
+        return point.X > center.X - radius && point.X < center.X + radius
+            && point.Y > center.Y - radius && point.Y < center.Y + radius
+
     }
 }
 
 function Queue() {
     this.content = [];
 
-    this.getNext = function() {
+    this.getNext = function () {
         let max = Number.MAX_VALUE;
         let min = -1;
 
@@ -128,7 +155,7 @@ function Queue() {
         return this.content.splice(min, 1)[0];
     };
 
-    this.size = function() {
+    this.size = function () {
         return this.content.length;
     };
 
@@ -146,9 +173,9 @@ function PathFinder(graph) {
     this.opened = new Queue();
     this.closed = {};
 
-    this.walkBetween = function(start, end) {
+    this.walkBetween = function (start, end) {
         this.opened.push(start);
-        start.f = distance(start, end);
+        start.f = heuristic(start, end);
         start.g = 0;
 
         let result = [];
@@ -176,16 +203,18 @@ function PathFinder(graph) {
                 if (this.closed[neighbour.hash()] !== true) {
 
                     neighbour.parent = current;
-                    neighbour.g = current.g + distance(neighbour, current);
-                    neighbour.f = current.g + distance(neighbour, end);
+                    neighbour.g = current.g + heuristic(neighbour, current);
+                    neighbour.f = current.g + heuristic(neighbour, end);
                     this.opened.push(neighbour);
 
+                    /*let point = document.getElementById("cell" + neighbour.Y + "-" + neighbour.X);
+                    point.classList.add("visited");*/
                     this.closed[neighbour.hash()] = true;
                 }
             }
         }
 
-        function distance(from, to) {
+        function heuristic(from, to) {
             return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
         }
 

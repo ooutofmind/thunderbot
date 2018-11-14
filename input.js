@@ -17,7 +17,7 @@ const input = {
         "HealthCount": 2,
         "Type": 1
     }, {"Coordinates": {"X": 11, "Y": 3}, "HealthCount": 255, "Type": 2}, {
-        "Coordinates": {"X": 20, "Y": 3},
+        "Coordinates": {"X": 13, "Y": 3},
         "HealthCount": 3,
         "Type": 0,
         "UserId": "outofmind/thunderbot"
@@ -133,7 +133,7 @@ const input = {
         "Coordinates": {"X": 0, "Y": 12},
         "HealthCount": 255,
         "Type": 2
-    }, {"Coordinates": {"X": 5, "Y": 3}, "HealthCount": 3, "Type": 0, "UserId": "r2"}, {
+    }, {"Coordinates": {"X": 7, "Y": 7}, "HealthCount": 3, "Type": 0, "UserId": "r2"}, {
         "Coordinates": {
             "X": 4,
             "Y": 12
@@ -200,5 +200,5 @@ const input = {
         "Type": 2
     }, {"Coordinates": {"X": 21, "Y": 13}, "HealthCount": 255, "Type": 2}],
     "BulletsInfo": [{"Coordinates": {"X": 17, "Y": 3}, "Direction": 2, "OwnerId": "r1"}],
-    "ZoneRadius": 94
+    "ZoneRadius": 4
 };

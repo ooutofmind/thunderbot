@@ -35,3 +35,7 @@ td.bullet {
 td.path {
     border: 1px solid red;
 }
+
+td.visited {
+    border: 1px solid greenyellow;
+}
