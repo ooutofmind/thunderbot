@@ -52,7 +52,7 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
                 break;
         }
 
-        if(graph.obstacles[cell.Coordinates.X + ";" + cell.Coordinates.Y] === true) {
+        if (graph.obstacles[cell.Coordinates.X + ";" + cell.Coordinates.Y] === true) {
             className = 'wall';
         }
         if (className) {
@@ -63,7 +63,10 @@ for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
 }
 
 let finder = new PathFinder(graph, myTankNode, enemyTankNode);
-let path = finder.walkBetween(myTankNode, enemyTankNode);
+let path = finder.pathBetween(myTankNode, enemyTankNode);
+if(!path) {
+    alert('the path cannot be found');
+}
 
 for (let i = 0; i < path.length; i++) {
     let node = path[i];
@@ -86,18 +89,16 @@ function GraphNode(x, y) {
 function Graph(gameState) {
     this.mapSize = {width: 0, height: 0};
     this.map = [];
-
     this.obstacles = {};
+    this.bullets = {};
 
-    let r = gameState.ZoneRadius;
+    let zoneRadius = gameState.ZoneRadius;
 
     gameState.ContentsInfo.forEach(cell => {
         let y = cell.Coordinates.Y;
         let x = cell.Coordinates.X;
 
-        if (cell.Type === CellType.NotDestroyable || cell.Type === CellType.Water) {
-            this.obstacles[x + ";" + y] = true;
-        }
+        this.obstacles[x + ";" + y] = true;
 
         let mapSize = this.mapSize;
         if (x > mapSize.width) {
@@ -109,23 +110,19 @@ function Graph(gameState) {
         }
     });
 
+    this.bullets =  gameState.BulletsInfo
+        .filter(bullet => bullet.OwnerId !== botName);
+
     let center = new GraphNode(Math.floor(this.mapSize.width / 2), Math.floor(this.mapSize.height / 2));
-    gameState.ContentsInfo.forEach(cell => {
-        let y = cell.Coordinates.Y;
-        let x = cell.Coordinates.X;
-
-
-
-
-    });
 
     for (let y = 0; y < this.mapSize.height; y++) {
         this.map[y] = [];
 
         for (let x = 0; x < this.mapSize.width; x++) {
             let node = this.map[y][x] = new GraphNode(x, y);
+
             let hash = node.hash();
-            if (this.obstacles[hash] !== true && !insideArea(center, node, r)) {
+            if (this.obstacles[hash] !== true && !insideArea(center, node, zoneRadius)) {
                 this.obstacles[hash] = true;
             }
         }
@@ -173,15 +170,17 @@ function PathFinder(graph) {
     this.opened = new Queue();
     this.closed = {};
 
-    this.walkBetween = function (start, end) {
+    this.pathBetween = function (start, end) {
         this.opened.push(start);
         start.f = heuristic(start, end);
         start.g = 0;
+        let pathLength = 0;
 
         let result = [];
 
         while (this.opened.size() > 0) {
             let current = this.opened.getNext();
+            pathLength++;
             this.closed[current.hash()] = true;
 
             if (current.hash() === end.hash()) {
@@ -218,18 +217,48 @@ function PathFinder(graph) {
             return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
         }
 
-        function neighbours(coordinates, graph) {
+        function neighbours(currentNode, graph) {
+            var bulletsPositions = {};
+            for (let i = 0; i < graph.bullets.length; i++) {
+                fillOutputWithFutureBulletPosition(graph.bullets[i], currentNode.g, bulletsPositions);
+            }
+
             return [
-                new GraphNode(coordinates.X + 1, coordinates.Y),
-                new GraphNode(coordinates.X - 1, coordinates.Y),
-                new GraphNode(coordinates.X, coordinates.Y + 1),
-                new GraphNode(coordinates.X, coordinates.Y - 1),
-            ].filter(node => !graph.obstacles[node.hash()]
+                new GraphNode(currentNode.X + 1, currentNode.Y),
+                new GraphNode(currentNode.X - 1, currentNode.Y),
+                new GraphNode(currentNode.X, currentNode.Y + 1),
+                new GraphNode(currentNode.X, currentNode.Y - 1),
+            ].filter(node => (node.hash() === end.hash() || !graph.obstacles[node.hash()])
                 && node.X >= 0
                 && graph.mapSize.width >= node.X
                 && node.Y >= 0
                 && graph.mapSize.height >= node.Y
+                && !bulletsPositions[node.hash()]
             );
+        }
+
+        function fillOutputWithFutureBulletPosition(bullet, ticks, output) {
+            let y = bullet.Coordinates.Y;
+            let x = bullet.Coordinates.X;
+
+            let k = 0, m = 0;
+            switch (bullet.Direction) {
+                case Direction.Up:
+                    m = 1;
+                    break;
+                case Direction.Down:
+                    m = -1;
+                    break;
+                case Direction.Left:
+                    k = -1;
+                    break;
+                case Direction.Right:
+                    k = 1;
+                    break;
+            }
+
+            output[(x + ticks * 2 * k) + ";" + (y + ticks * 2 * m)] = true;
+            output[((x - k) + ticks * 2 * k) + ";" + ((y - m) + ticks * 2 * m)] = true;
         }
     };
 }
