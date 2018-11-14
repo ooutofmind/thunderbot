@@ -17,7 +17,8 @@ let myTankNode = graph.map[myTankCoord.Y][myTankCoord.X];
 let enemyTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName)[0].Coordinates;
 let enemyTankNode = graph.map[enemyTankCoord.Y][enemyTankCoord.X];
 
-let path = new PathFinder(graph, myTankNode, enemyTankNode);
+let finder = new PathFinder(graph, myTankNode, enemyTankNode);
+let path = finder.walkBetween(myTankNode, enemyTankNode);
 let endProfile = Date.now();
 alert("It takes " + (endProfile - startProfile) + 'ms');
 console.info(path);
@@ -69,7 +70,6 @@ for (let i = 0; i < path.length; i++) {
 function GraphNode(x, y) {
     this.X = x;
     this.Y = y;
-    this.neighbours = [];
     this.f = Infinity;
     this.g = Infinity;
 
@@ -111,76 +111,98 @@ function Graph(gameState) {
     }
 }
 
-function PathFinder(graph, sourceNode, targetNode) {
-    let opened = [];
-    opened.getNext = function () {
+function Queue() {
+    this.content = [];
+
+    this.getNext = function() {
         let max = Number.MAX_VALUE;
         let min = -1;
 
-        for (let i = 0; i < this.length; i++) {
-            if (this[i].f < max) {
-                max = this[i].f;
+        for (let i = 0; i < this.content.length; i++) {
+            if (this.content[i].f < max) {
+                max = this.content[i].f;
                 min = i;
             }
         }
 
-        return this.splice(min, 1)[0];
+        return this.content.splice(min, 1)[0];
     };
 
-    opened.push(sourceNode);
-    let closed = {};
+    this.size = function() {
+        return this.content.length;
+    };
 
-    sourceNode.f = distance(sourceNode, targetNode);
-    sourceNode.g = 0;
+    this.push = function (e) {
+        return this.content.push(e);
+    };
 
-    let result = [];
+    this.clear = function () {
+        this.content = [];
+    }
+}
 
-    while (opened.length > 0) {
-        let current = opened.getNext();
+function PathFinder(graph) {
+    this.graph = graph;
+    this.opened = new Queue();
+    this.closed = {};
 
-        if (current.hash() === targetNode.hash()) {
-            do {
-                result.push(current);
-                current = current.parent;
-            } while (current);
+    this.walkBetween = function(start, end) {
+        this.opened.push(start);
+        start.f = distance(start, end);
+        start.g = 0;
 
-            return result.reverse();
-        }
+        let result = [];
 
-        let neighboursList = neighbours(current, graph);
-        for (let i = 0; i < neighboursList.length; i++) {
-            let neighbour = neighboursList[i];
+        while (this.opened.size() > 0) {
+            let current = this.opened.getNext();
+            this.closed[current.hash()] = true;
 
-            if (closed[neighbour.hash()] !== true) {
+            if (current.hash() === end.hash()) {
+                do {
+                    result.push(current);
+                    current = current.parent;
+                } while (current);
 
-                neighbour.parent = current;
-                neighbour.g = current.g + distance(neighbour, current);
-                neighbour.f = current.g + distance(neighbour, targetNode);
-                opened.push(neighbour);
+                this.closed = {};
+                this.opened.clear();
 
-                closed[neighbour.hash()] = true;
+                return result.reverse();
+            }
+
+            let neighboursList = neighbours(current, this.graph);
+            for (let i = 0; i < neighboursList.length; i++) {
+                let neighbour = neighboursList[i];
+
+                if (this.closed[neighbour.hash()] !== true) {
+
+                    neighbour.parent = current;
+                    neighbour.g = current.g + distance(neighbour, current);
+                    neighbour.f = current.g + distance(neighbour, end);
+                    this.opened.push(neighbour);
+
+                    this.closed[neighbour.hash()] = true;
+                }
             }
         }
-        closed[current.hash()] = true;
-    }
 
-    function distance(from, to) {
-        return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
-    }
+        function distance(from, to) {
+            return Math.abs(from.X - to.X) + Math.abs(from.Y - to.Y)
+        }
 
-    function neighbours(coordinates, graph) {
-        return [
-            new GraphNode(coordinates.X + 1, coordinates.Y),
-            new GraphNode(coordinates.X - 1, coordinates.Y),
-            new GraphNode(coordinates.X, coordinates.Y + 1),
-            new GraphNode(coordinates.X, coordinates.Y - 1),
-        ].filter(node => !graph.obstacles[node.X + ";" + node.Y]
-            && node.X >= 0
-            && graph.mapSize.width >= node.X
-            && node.Y >= 0
-            && graph.mapSize.height >= node.Y
-        );
-    }
+        function neighbours(coordinates, graph) {
+            return [
+                new GraphNode(coordinates.X + 1, coordinates.Y),
+                new GraphNode(coordinates.X - 1, coordinates.Y),
+                new GraphNode(coordinates.X, coordinates.Y + 1),
+                new GraphNode(coordinates.X, coordinates.Y - 1),
+            ].filter(node => !graph.obstacles[node.hash()]
+                && node.X >= 0
+                && graph.mapSize.width >= node.X
+                && node.Y >= 0
+                && graph.mapSize.height >= node.Y
+            );
+        }
+    };
 }
 
 
