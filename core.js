@@ -10,7 +10,7 @@ const CellType = {Tank: 0, Barrier: 1, NotDestroyable: 2, Water: 3, Bullet: -1};
 let table = document.createElement('table');
 document.body.appendChild(table);
 
-let startProfile = Date.now();
+
 let graph = new Graph(input);
 let myTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId === botName)[0].Coordinates;
 let myTankNode = graph.map[myTankCoord.Y][myTankCoord.X];
@@ -18,8 +18,6 @@ let enemyTankCoord = input.ContentsInfo.filter(cell => cell.Type === CellType.Ta
 let enemyTankNode = graph.map[enemyTankCoord.Y][enemyTankCoord.X];
 
 
-let endProfile = Date.now();
-//alert("It takes " + (endProfile - startProfile) + 'ms');
 let pathFinder = new AStarSteering(input);
 
 for (let i = pathFinder.mapSize.height - 1; i >= 0; i--) {
@@ -74,6 +72,10 @@ for (let i = 0; i < path.length; i++) {
     point.classList.add("path");
 
 }
+
+
+
+
 
 function GraphNode(x, y) {
     this.X = x;
@@ -336,3 +338,161 @@ function AStarSteering(gameState) {
         }
     }
 }
+log = console.info;
+
+let startProfile = Date.now();
+function f(gameState) {
+    let graph = new Graph(gameState);
+    let myTankCoord = gameState.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId === botName)[0].Coordinates;
+    let myTankNode = graph.map[myTankCoord.Y][myTankCoord.X];
+
+    let enemyTanks = gameState.ContentsInfo
+        .filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName);
+
+    let shootPos = shootPositions(myTankCoord, enemyTanks);
+
+    let response = shootImmediately(gameState.ContentsInfo, myTankCoord, graph);
+    if (response) {
+        console.error("immediate shoot " + response);
+        log(response);
+        return;
+    }
+
+    let finder = new PathFinder(graph);
+    let pathLength = Number.MAX_VALUE;
+    let path = null;
+    shootPos.forEach(pos => {
+        let targetNode = graph.map[pos.Y][pos.X];
+        let possiblePath = finder.pathBetween(myTankNode, targetNode);
+        if (possiblePath && pathLength > possiblePath.length){
+            pathLength = possiblePath.length;
+            path = possiblePath;
+        }
+    });
+
+
+    if (!path) {
+        console.error("path not found");
+        log([{Type: UserActionType.Shoot, Direction: Direction.Up}]);
+        return;
+    }
+
+    console.error("path found from " + myTankNode.X + "," +myTankNode.Y + " = " + path);
+
+    let dX = myTankCoord.X - path[1].X;
+    let dY = myTankCoord.Y - path[1].Y;
+
+    let direction = (Math.abs(dX) > Math.abs(dY)
+        ? (dX < 0 ? Direction.Right : Direction.Left)
+        : (dY < 0 ? Direction.Up : Direction.Down));
+
+    response = [{Type: UserActionType.Move, Direction: direction}];
+    console.error(response);
+    log(response);
+
+    function shootPositions(startPt, targets) {
+        let res = [];
+        targets.forEach(target => {
+            res.push({X: target.Coordinates.X, Y: startPt.Y, onTheLine: startPt.Y === target.Coordinates.Y});
+            res.push({X: startPt.X, Y: target.Coordinates.Y, onTheLine: startPt.X === target.Coordinates.X});
+        });
+
+        return res;
+    }
+
+    function shootImmediately(contentsInfo, myTankCoord, graph) {
+        let direction = null;
+
+        let target = null;
+        let minDist = Number.MAX_VALUE;
+
+        shootPos
+            .filter(pos => pos.onTheLine === true)
+            .forEach(pos => {
+                if (onTheLineWithoutObstacles(myTankCoord, pos, graph)) {
+                    let dist = Math.abs(myTankCoord.X - pos.X)
+                        + Math.abs(myTankCoord.Y - pos.Y);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        target = pos;
+                    }
+                }
+            });
+
+        if (target === null) {
+            shootPos
+                .filter(pos => pos.onTheLine !== true)
+                .forEach(pos => {
+                    if (onTheLineWithoutObstacles(myTankCoord, pos, graph)) {
+                        let dist = Math.abs(myTankCoord.X - pos.X)
+                            + Math.abs(myTankCoord.Y - pos.Y);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            target = pos;
+                        }
+                    }
+                });
+        }
+
+        if (target === null) {
+            return null;
+        }
+
+        if (myTankCoord.X === target.Coordinates.X) {
+            direction = target.Coordinates.Y - myTankCoord.Y > 0 ? Direction.Left : Direction.Right;
+        } else if (myTankCoord.Y === target.Coordinates.Y) {
+            direction = target.Coordinates.X - myTankCoord.X > 0 ? Direction.Down : Direction.Up;
+        }
+
+        if (direction === null) {
+            return null;
+        }
+
+        return [{Type: UserActionType.Shoot, Direction: direction}];
+
+        function onTheLineWithoutObstacles(p1, p2, graph) {
+            let onTheLine = p1.X === p2.X || p1.Y === p2.Y;
+
+            if (!onTheLine) return false;
+
+            if (p1.X === p2.X) {
+                let yStart = p1.Y < p2.Y ? p1.Y : p2.Y;
+                for (let i = 0; i < Math.abs(p1.Y - p2.Y); i++) {
+                    if (graph.obstacles[p1.X + ";" + (yStart + i)] === true) {
+                        return false;
+                    }
+                }
+            } else if (p1.Y === p2.Y) {
+                let xStart = p1.X < p2.X ? p1.X : p2.X;
+                for (let i = 0; i < Math.abs(p1.X - p2.X); i++) {
+                    if (graph.obstacles[(xStart + i) + ";" + p1.Y] === true) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /*function isBetween(currPoint, point1, point2) {
+            let dxl = point2.X - point1.X;
+            let dyl = point2.Y - point1.Y;
+
+            if (Math.abs(dxl) >= Math.abs(dyl))
+                return dxl > 0 ?
+                    point1.X <= currPoint.X && currPoint.X <= point2.X :
+                    point2.X <= currPoint.X && currPoint.X <= point1.X;
+            else
+                return dyl > 0 ?
+                    point1.Y <= currPoint.Y && currPoint.Y <= point2.Y :
+                    point2.Y <= currPoint.Y && currPoint.Y <= point1.Y;
+        }*/
+    }
+}
+
+/*for (let i = 0; i < 100; i++) {
+    f(input);
+}*/
+console.info(f(input));
+let endProfile = Date.now();
+//alert(endProfile - startProfile + ' ms')

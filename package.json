@@ -1,5 +1,5 @@
 {
-  "name": "js_random_bot",
+  "name": "thunderbot",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
