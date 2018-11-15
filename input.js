@@ -199,6 +199,6 @@ const input = {
         "HealthCount": 255,
         "Type": 2
     }, {"Coordinates": {"X": 21, "Y": 13}, "HealthCount": 255, "Type": 2}],
-    "BulletsInfo": [{"Coordinates": {"X": 12, "Y": 3}, "Direction": 1, "OwnerId": "r2"}],
+    "BulletsInfo": [{"Coordinates": {"X": 12, "Y": 4}, "Direction": 1, "OwnerId": "r2"}],
     "ZoneRadius": 78
 };
