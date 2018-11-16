@@ -1,8 +1,9 @@
 const linq = require('linq'),
     readline = require('readline'),
-    log = function(text) {
-    console.error(text);
-    console.log(text)},
+    log = function (text) {
+        console.error(text);
+        console.log(text)
+    },
     rl = readline.createInterface(process.stdin, process.stdout),
     botName = 'outofmind/thunderbot';
 
@@ -33,7 +34,7 @@ function GraphNode(x, y) {
         return this.X + ";" + this.Y
     };
 
-    this.toString = function() {
+    this.toString = function () {
         return this.hash();
     }
 }
@@ -228,16 +229,18 @@ rl.on('line', (state) => {
     let enemyTanks = gameState.ContentsInfo
         .filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName);
 
+    let finder = new PathFinder(graph);
     let shootPos = shootPositions(myTankCoord, enemyTanks, graph);
-
-    let response = shootImmediately(shootPos, myTankCoord, graph);
+    let hasMyBulletLive = gameState.BulletsInfo.filter(bullet => bullet.OwnerId === botName).length > 0;
+    console.error("my bullet live " + hasMyBulletLive);
+    let response = hasMyBulletLive ? null : shootImmediately(shootPos, myTankCoord, graph, finder);
     if (response) {
         console.error("shootImmediately");
         log(response);
         return;
     }
 
-    let finder = new PathFinder(graph);
+
     let pathLength = Number.MAX_VALUE;
     let path = null;
     shootPos.forEach(pos => {
@@ -270,14 +273,24 @@ rl.on('line', (state) => {
     function shootPositions(startPt, targets, graph) {
         let res = [];
         targets.forEach(target => {
-            res.push({X: target.Coordinates.X, Y: startPt.Y, onTheLine: startPt.Y === target.Coordinates.Y});
-            res.push({X: startPt.X, Y: target.Coordinates.Y, onTheLine: startPt.X === target.Coordinates.X});
+            res.push({
+                target: target,
+                X: target.Coordinates.X,
+                Y: startPt.Y,
+                onTheLine: startPt.Y === target.Coordinates.Y
+            });
+            res.push({
+                target: target,
+                X: startPt.X,
+                Y: target.Coordinates.Y,
+                onTheLine: startPt.X === target.Coordinates.X
+            });
         });
 
         return res.filter(pos => graph.obstacles[pos.X + ";" + pos.Y] !== true);
     }
 
-    function shootImmediately(shootPos, myTankCoord, graph) {
+    function shootImmediately(shootPos, myTankCoord, graph, finder) {
         let direction = null;
 
         let target = null;
@@ -291,34 +304,19 @@ rl.on('line', (state) => {
                         + Math.abs(myTankCoord.Y - pos.Y);
                     if (dist < minDist) {
                         minDist = dist;
-                        target = pos;
+                        target = pos.target;
                     }
                 }
             });
 
         if (target === null) {
-            shootPos
-                .filter(pos => pos.onTheLine !== true)
-                .forEach(pos => {
-                    if (onTheLineWithoutObstacles(myTankCoord, pos, graph)) {
-                        let dist = Math.abs(myTankCoord.X - pos.X)
-                            + Math.abs(myTankCoord.Y - pos.Y);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            target = pos;
-                        }
-                    }
-                });
-        }
-
-        if (target === null) {
             return null;
         }
 
-        if (myTankCoord.X === target.Coordinates.X) {
-            direction = target.Coordinates.Y - myTankCoord.Y > 0 ? Direction.Left : Direction.Right;
-        } else if (myTankCoord.Y === target.Coordinates.Y) {
-            direction = target.Coordinates.X - myTankCoord.X > 0 ? Direction.Down : Direction.Up;
+        if (myTankCoord.X === target.X) {
+            direction = target.Y - myTankCoord.Y > 0 ? Direction.Left : Direction.Right;
+        } else if (myTankCoord.Y === target.Y) {
+            direction = target.X - myTankCoord.X > 0 ? Direction.Down : Direction.Up;
         }
 
         if (direction === null) {
