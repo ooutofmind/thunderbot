@@ -1,9 +1,6 @@
 const linq = require('linq'),
     readline = require('readline'),
-    log = function (text) {
-        console.error(text);
-        console.log(text)
-    },
+    log = console.log,
     rl = readline.createInterface(process.stdin, process.stdout),
     botName = 'outofmind/thunderbot';
 
@@ -216,9 +213,6 @@ function PathFinder(graph) {
 
 let frame = 0;
 rl.on('line', (state) => {
-    console.error("frame " + ++frame);
-    console.error(state);
-
     let startProfiler = Date.now();
 
     let gameState = JSON.parse(state);
@@ -232,10 +226,8 @@ rl.on('line', (state) => {
     let finder = new PathFinder(graph);
     let shootPos = shootPositions(myTankCoord, enemyTanks, graph);
     let hasMyBulletLive = gameState.BulletsInfo.filter(bullet => bullet.OwnerId === botName).length > 0;
-    console.error("my bullet live " + hasMyBulletLive);
-    let response = hasMyBulletLive ? null : shootImmediately(shootPos, myTankCoord, graph, finder);
+    let response = hasMyBulletLive ? null : shootImmediately(enemyTanks, myTankCoord, graph, finder);
     if (response) {
-        console.error("shootImmediately");
         log(response);
         return;
     }
@@ -254,7 +246,28 @@ rl.on('line', (state) => {
 
 
     if (!path) {
-        console.error("path not found");
+        let enemy = enemyTanks[0];
+        let possiblePositions = [
+            new GraphNode(enemy.Coordinates.X + 3, enemy.Coordinates.Y),
+            new GraphNode(enemy.Coordinates.X - 3, enemy.Coordinates.Y),
+            new GraphNode(enemy.Coordinates.X, enemy.Coordinates.Y + 3),
+            new GraphNode(enemy.Coordinates.X, enemy.Coordinates.Y - 3)
+        ].filter(node => graph.obstacles[node.hash()] !== true
+            && node.X > 0
+            && node.Y > 0
+            && node.X <= graph.mapSize.width
+            && node.Y <= graph.mapSize.height);
+
+        possiblePositions.forEach(targetNode => {
+            let possiblePath = finder.pathBetween(myTankNode, targetNode);
+            if (possiblePath && pathLength > possiblePath.length) {
+                pathLength = possiblePath.length;
+                path = possiblePath;
+            }
+        });
+    }
+
+    if(!path) {
         path = finder.pathBetween(myTankNode, graph.center);
     }
 
@@ -265,10 +278,33 @@ rl.on('line', (state) => {
         ? (dX < 0 ? Direction.Right : Direction.Left)
         : (dY < 0 ? Direction.Up : Direction.Down));
 
-    console.error("path found " + path);
     response = [{Type: UserActionType.Move, Direction: direction}];
 
     log(response);
+
+    function onTheLineWithoutObstacles(p1, p2, graph) {
+        let onTheLine = p1.X === p2.X || p1.Y === p2.Y;
+
+        if (!onTheLine) return false;
+
+        if (p1.X === p2.X) {
+            let yStart = p1.Y < p2.Y ? p1.Y : p2.Y;
+            for (let i = 1; i <= Math.abs(p1.Y - p2.Y) - 1; i++) {
+                if (graph.obstacles[p1.X + ";" + (yStart + i)] === true) {
+                    return false;
+                }
+            }
+        } else if (p1.Y === p2.Y) {
+            let xStart = p1.X < p2.X ? p1.X : p2.X;
+            for (let i = 1; i <= Math.abs(p1.X - p2.X) - 1; i++) {
+                if (graph.obstacles[(xStart + i) + ";" + p1.Y] === true) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
 
     function shootPositions(startPt, targets, graph) {
         let res = [];
@@ -287,24 +323,25 @@ rl.on('line', (state) => {
             });
         });
 
-        return res.filter(pos => graph.obstacles[pos.X + ";" + pos.Y] !== true);
+        return res.filter(pos => graph.obstacles[pos.X + ";" + pos.Y] !== true
+            && onTheLineWithoutObstacles(pos, startPt, graph));
     }
 
-    function shootImmediately(shootPos, myTankCoord, graph, finder) {
+    function shootImmediately(enemyTanks, myTankCoord, graph, finder) {
         let direction = null;
 
         let target = null;
         let minDist = Number.MAX_VALUE;
 
-        shootPos
-            .filter(pos => pos.onTheLine === true)
-            .forEach(pos => {
-                if (onTheLineWithoutObstacles(myTankCoord, pos, graph)) {
-                    let dist = Math.abs(myTankCoord.X - pos.X)
-                        + Math.abs(myTankCoord.Y - pos.Y);
+        enemyTanks
+            .forEach(enemy => {
+                if (onTheLineWithoutObstacles(myTankCoord, enemy.Coordinates, graph)) {
+                    let dist = Math.abs(myTankCoord.X - enemy.Coordinates.X)
+                        + Math.abs(myTankCoord.Y - enemy.Coordinates.Y);
+
                     if (dist < minDist) {
                         minDist = dist;
-                        target = pos.target;
+                        target = enemy;
                     }
                 }
             });
@@ -313,10 +350,10 @@ rl.on('line', (state) => {
             return null;
         }
 
-        if (myTankCoord.X === target.X) {
-            direction = target.Y - myTankCoord.Y > 0 ? Direction.Left : Direction.Right;
-        } else if (myTankCoord.Y === target.Y) {
-            direction = target.X - myTankCoord.X > 0 ? Direction.Down : Direction.Up;
+        if (myTankCoord.X === target.Coordinates.X) {
+            direction = target.Coordinates.Y - myTankCoord.Y > 0 ? Direction.Up : Direction.Down;
+        } else if (myTankCoord.Y === target.Coordinates.Y) {
+            direction = target.Coordinates.X - myTankCoord.X > 0 ? Direction.Right : Direction.Left;
         }
 
         if (direction === null) {
@@ -325,28 +362,6 @@ rl.on('line', (state) => {
 
         return [{Type: UserActionType.Shoot, Direction: direction}];
 
-        function onTheLineWithoutObstacles(p1, p2, graph) {
-            let onTheLine = p1.X === p2.X || p1.Y === p2.Y;
 
-            if (!onTheLine) return false;
-
-            if (p1.X === p2.X) {
-                let yStart = p1.Y < p2.Y ? p1.Y : p2.Y;
-                for (let i = 0; i < Math.abs(p1.Y - p2.Y); i++) {
-                    if (graph.obstacles[p1.X + ";" + (yStart + i)] === true) {
-                        return false;
-                    }
-                }
-            } else if (p1.Y === p2.Y) {
-                let xStart = p1.X < p2.X ? p1.X : p2.X;
-                for (let i = 0; i < Math.abs(p1.X - p2.X); i++) {
-                    if (graph.obstacles[(xStart + i) + ";" + p1.Y] === true) {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        }
     }
 });
