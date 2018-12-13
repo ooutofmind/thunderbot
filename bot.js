@@ -40,6 +40,7 @@ function Graph(gameState) {
     this.mapSize = {width: 0, height: 0};
     this.map = [];
     this.obstacles = {};
+    this.shootable = {};
     this.bullets = {};
 
     let zoneRadius = gameState.ZoneRadius;
@@ -49,6 +50,7 @@ function Graph(gameState) {
         let x = cell.Coordinates.X;
 
         this.obstacles[x + ";" + y] = true;
+        this.shootable[x + ";" + y] = cell.CellType === CellType.Water;
 
         let mapSize = this.mapSize;
         if (x > mapSize.width) {
@@ -213,8 +215,6 @@ function PathFinder(graph) {
 
 let frame = 0;
 rl.on('line', (state) => {
-    let startProfiler = Date.now();
-
     let gameState = JSON.parse(state);
     let graph = new Graph(gameState);
     let myTankCoord = gameState.ContentsInfo.filter(cell => cell.Type === CellType.Tank && cell.UserId === botName)[0].Coordinates;
@@ -224,17 +224,15 @@ rl.on('line', (state) => {
         .filter(cell => cell.Type === CellType.Tank && cell.UserId !== botName);
 
     let finder = new PathFinder(graph);
-    let shootPos = shootPositions(myTankCoord, enemyTanks, graph);
     let hasMyBulletLive = gameState.BulletsInfo.filter(bullet => bullet.OwnerId === botName).length > 0;
     let response = hasMyBulletLive ? null : shootImmediately(enemyTanks, myTankCoord, graph, finder);
     if (response) {
         log(response);
         return;
     }
-
-
     let pathLength = Number.MAX_VALUE;
     let path = null;
+    let shootPos = shootPositions(myTankCoord, enemyTanks, graph);
     shootPos.forEach(pos => {
         let targetNode = graph.map[pos.Y][pos.X];
         let possiblePath = finder.pathBetween(myTankNode, targetNode);
@@ -290,14 +288,16 @@ rl.on('line', (state) => {
         if (p1.X === p2.X) {
             let yStart = p1.Y < p2.Y ? p1.Y : p2.Y;
             for (let i = 1; i <= Math.abs(p1.Y - p2.Y) - 1; i++) {
-                if (graph.obstacles[p1.X + ";" + (yStart + i)] === true) {
+                if (graph.obstacles[p1.X + ";" + (yStart + i)] === true &&
+                    !graph.shootable[p1.X + ";" + (yStart + i)]) {
                     return false;
                 }
             }
         } else if (p1.Y === p2.Y) {
             let xStart = p1.X < p2.X ? p1.X : p2.X;
             for (let i = 1; i <= Math.abs(p1.X - p2.X) - 1; i++) {
-                if (graph.obstacles[(xStart + i) + ";" + p1.Y] === true) {
+                if (graph.obstacles[(xStart + i) + ";" + p1.Y] === true &&
+                    !graph.shootable[(xStart + i) + ";" + p1.Y]) {
                     return false;
                 }
             }
@@ -308,18 +308,22 @@ rl.on('line', (state) => {
 
     function shootPositions(startPt, targets, graph) {
         let res = [];
+        let distance = 4;
         targets.forEach(target => {
+            let x = target.Coordinates.X;
+            let y = target.Coordinates.Y;
+
             res.push({
                 target: target,
-                X: target.Coordinates.X,
-                Y: startPt.Y,
-                onTheLine: startPt.Y === target.Coordinates.Y
+                X: x,
+                Y: y - startPt.Y > 0 ? y - distance : y + distance,
+                onTheLine: startPt.Y === y
             });
             res.push({
                 target: target,
-                X: startPt.X,
-                Y: target.Coordinates.Y,
-                onTheLine: startPt.X === target.Coordinates.X
+                X: x - startPt.X > 0 ? x - distance : x + distance,
+                Y: y,
+                onTheLine: startPt.X === x
             });
         });
 
